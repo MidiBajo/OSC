@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SYNTHBAJO - Polyphonic Kaoss Pad</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #132e25 0%, #061510 100%);
+            color: #ecfdf5;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .container {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(19, 46, 37, 0.75);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(52, 211, 153, 0.12);
+            border-radius: 20px;
+            padding: 18px;
+            box-sizing: border-box;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            margin: 0 0 12px 0;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6ee7b7;
+            margin: 10px 0 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        select, button {
+            background: rgba(20, 60, 45, 0.6);
+            color: #d1fae5;
+            border: 1px solid rgba(52, 211, 153, 0.08);
+            border-radius: 10px;
+            padding: 8px;
+            font-size: 11px;
+            width: 100%;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            backdrop-filter: blur(10px);
+        }
+        select:hover, button:hover {
+            background: rgba(30, 90, 65, 0.8);
+            border-color: rgba(52, 211, 153, 0.2);
+        }
+        button.active {
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+        .control-box {
+            background: rgba(10, 40, 30, 0.5);
+            border: 1px solid rgba(52, 211, 153, 0.06);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .control-box label {
+            font-size: 11px;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+            color: #a7f3d0;
+        }
+        .control-box input[type=range] {
+            width: 100%;
+            accent-color: #10b981;
+            cursor: pointer;
+        }
+        .kaos-pad {
+            position: relative;
+            background: radial-gradient(circle at center, #065f46 0%, #022c22 100%);
+            border-radius: 14px;
+            width: 100%;
+            height: 220px;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            box-sizing: border-box;
+            box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            margin: 6px 0;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        .kaos-pad-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(52, 211, 153, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(52, 211, 153, 0.05) 1px, transparent 1px);
+            background-size: 25px 25px;
+            pointer-events: none;
+        }
+        .kaos-instruction {
+            position: absolute;
+            width: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(167, 243, 208, 0.4);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            pointer-events: none;
+            text-align: center;
+        }
+        .touch-point {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #34d399 0%, #047857 70%);
+            box-shadow: 0 0 20px #34d399;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>KAOSS-BAJO POLY (IPHONE & PC)</h2>
+
+    <div class="section-label">Forma d'Onda:</div>
+    <div class="row">
+        <button class="active" data-wave="sine">Sine</button>
+        <button data-wave="square">Square</button>
+        <button data-wave="sawtooth">Saw</button>
+        <button data-wave="triangle">Tri</button>
+    </div>
+
+    <div class="section-label">X/Y Pad (Multi-touch supportato):</div>
+    <div class="kaos-pad" id="kaosPad">
+        <div class="kaos-pad-grid"></div>
+        <div class="kaos-instruction" id="kaosText">TOCCA CON PIÙ DITA O CLICCA</div>
+        <!-- Pool di indicatori visivi per il multitouch -->
+        <div class="touch-point" id="tp-0"></div>
+        <div class="touch-point" id="tp-1"></div>
+        <div class="touch-point" id="tp-2"></div>
+        <div class="touch-point" id="tp-3"></div>
+        <div class="touch-point" id="tp-4"></div>
+    </div>
+
+    <div class="control-box">
+        <label id="volumeLabel">VOLUME: 70%</label>
+        <input type="range" id="volumeRange" min="0" max="100" value="70">
+    </div>
+
+    <div class="section-label">Modulatori & FX:</div>
+    <div class="row">
+        <button id="btnArp">ARP OFF</button>
+        <button id="btnDelay" class="active">DELAY</button>
+        <button id="btnReverb">SPACE</button>
+    </div>
+</div>
+
+<script>
+    let audioCtx = null;
+    let masterGain = null;
+    let delayNode = null, delayFeedback = null, convolverNode = null;
+    let currentWave = 'sine';
+    let masterVolume = 0.7;
+    
+    let arpMode = 0; // 0 = OFF, 1 = 1/4, 2 = 1/16, 3 = 1/32
+    let arpTimer = null;
+    let arpStepIndex = 0;
+
+    let activeVoices = {}; // Mappa ID -> { osc, gain, filter, freq, xNorm, yNorm }
+    let isMouseDown = false;
+
+    const pad = document.getElementById('kaosPad');
+    const kaosText = document.getElementById('kaosText');
+
+    function initAudio() {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = masterVolume * 0.25;
+
+            delayNode = audioCtx.createDelay();
+            delayNode.delayTime.value = 0.35;
+            delayFeedback = audioCtx.createGain();
+            delayFeedback.gain.value = 0.4;
+            delayNode.connect(delayFeedback);
+            delayFeedback.connect(delayNode);
+
+            convolverNode = audioCtx.createConvolver();
+            createReverbImpulse();
+
+            masterGain.connect(audioCtx.destination);
+            updateFXRouting();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function updateFXRouting() {
+        if (!audioCtx) return;
+        try { masterGain.disconnect(); } catch(e){}
+        masterGain.connect(audioCtx.destination);
+
+        if (document.getElementById('btnDelay').classList.contains('active')) {
+            masterGain.connect(delayNode);
+            delayNode.connect(audioCtx.destination);
+        }
+        if (document.getElementById('btnReverb').classList.contains('active')) {
+            masterGain.connect(convolverNode);
+            convolverNode.connect(audioCtx.destination);
+        }
+    }
+
+    function createReverbImpulse() {
+        if (!audioCtx) return;
+        let rate = audioCtx.sampleRate;
+        let length = rate * 2.0;
+        let impulse = audioCtx.createBuffer(2, length, rate);
+        let left = impulse.getChannelData(0);
+        let right = impulse.getChannelData(1);
+        for (let i = 0; i < length; i++) {
+            let decay = Math.exp(-i / (rate * 0.5));
+            left[i] = (Math.random() * 2 - 1) * decay;
+            right[i] = (Math.random() * 2 - 1) * decay;
+        }
+        convolverNode.buffer = impulse;
+    }
+
+    function createVoice(id, xNorm, yNorm) {
+        initAudio();
+        if (activeVoices[id]) removeVoice(id);
+
+        let osc = audioCtx.createOscillator();
+        osc.type = currentWave;
+
+        let filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        let cutoff = 100 + Math.pow(yNorm, 2) * 5000;
+        filter.frequency.setValueAtTime(cutoff, audioCtx.currentTime);
+        filter.Q.setValueAtTime(4, audioCtx.currentTime);
+
+        let gain = audioCtx.createGain();
+        let initialGain = (arpMode === 0) ? 1.0 : 0.0;
+        gain.gain.setValueAtTime(initialGain, audioCtx.currentTime);
+
+        let freq = 110 * Math.pow(2, xNorm * 4);
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+        osc.start();
+
+        activeVoices[id] = { osc, gain, filter, freq, xNorm, yNorm };
+
+        if (arpMode > 0 && !arpTimer) {
+            startArpEngine();
+        }
+        updateVisuals();
+    }
+
+    function updateVoice(id, xNorm, yNorm) {
+        let v = activeVoices[id];
+        if (!v || !audioCtx) return;
+
+        v.xNorm = xNorm;
+        v.yNorm = yNorm;
+        v.freq = 110 * Math.pow(2, xNorm * 4);
+
+        if (arpMode === 0) {
+            v.osc.frequency.setTargetAtTime(v.freq, audioCtx.currentTime, 0.01);
+        }
+        let cutoff = 100 + Math.pow(yNorm, 2) * 5000;
+        v.filter.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.01);
+    }
+
+    function removeVoice(id) {
+        let v = activeVoices[id];
+        if (v && audioCtx) {
+            try {
+                v.gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                let o = v.osc;
+                setTimeout(() => { o.stop(); o.disconnect(); }, 50);
+            } catch(e){}
+            delete activeVoices[id];
+        }
+        if (Object.keys(activeVoices).length === 0 && arpTimer) {
+            clearInterval(arpTimer);
+            arpTimer = null;
+        }
+        updateVisuals();
+    }
+
+    function updateVisuals() {
+        let keys = Object.keys(activeVoices);
+        kaosText.style.opacity = keys.length > 0 ? '0.1' : '1';
+
+        for (let i = 0; i < 5; i++) {
+            let dot = document.getElementById(`tp-${i}`);
+            if (keys[i]) {
+                let v = activeVoices[keys[i]];
+                let rect = pad.getBoundingClientRect();
+                let px = v.xNorm * rect.width;
+                let py = (1 - v.yNorm) * rect.height;
+                dot.style.left = `${px}px`;
+                dot.style.top = `${py}px`;
+                dot.style.display = 'block';
+            } else {
+                dot.style.display = 'none';
+            }
+        }
+    }
+
+    function startArpEngine() {
+        if (arpTimer) clearInterval(arpTimer);
+        if (arpMode === 0) return;
+
+        let speed = (arpMode === 1) ? 250 : (arpMode === 2 ? 125 : 62); // 1/4, 1/16, 1/32
+
+        arpTimer = setInterval(() => {
+            if (!audioCtx || arpMode === 0) return;
+            let keys = Object.keys(activeVoices);
+            if (keys.length === 0) return;
+
+            // Se ci sono più note/dita, ordiniamo per frequenza (arpeggio ascendente)
+            keys.sort((a, b) => activeVoices[a].freq - activeVoices[b].freq);
+
+            arpStepIndex = (arpStepIndex + 1) % keys.length;
+            let currentKey = keys[arpStepIndex];
+
+            keys.forEach((k) => {
+                let v = activeVoices[k];
+                if (!v) return;
+                v.osc.frequency.setTargetAtTime(v.freq, audioCtx.currentTime, 0.01);
+                
+                // Se c'è una sola nota ripete il battito, se ce ne sono tante le alterna in sequenza
+                let targetVol = (keys.length === 1 || k === currentKey) ? 1.0 : 0.0;
+                v.gain.gain.setValueAtTime(targetVol, audioCtx.currentTime);
+            });
+        }, speed);
+    }
+
+    // --- MOUSE (WINDOWS) ---
+    pad.addEventListener('mousedown', (e) => {
+        isMouseDown = true;
+        const rect = pad.getBoundingClientRect();
+        let x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        let y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+        createVoice('mouse_main', x / rect.width, 1 - (y / rect.height));
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isMouseDown) return;
+        const rect = pad.getBoundingClientRect();
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+            updateVoice('mouse_main', x / rect.width, 1 - (y / rect.height));
+            updateVisuals();
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isMouseDown) {
+            isMouseDown = false;
+            removeVoice('mouse_main');
+        }
+    });
+
+    // --- MULTITOUCH (IPHONE / IOS) ---
+    pad.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const rect = pad.getBoundingClientRect();
+        for (let i = 0; i < e.touches.length; i++) {
+            let t = e.touches[i];
+            let x = Math.max(0, Math.min(t.clientX - rect.left, rect.width));
+            let y = Math.max(0, Math.min(t.clientY - rect.top, rect.height));
+            createVoice('touch_' + t.identifier, x / rect.width, 1 - (y / rect.height));
+        }
+    }, { passive: false });
+
+    pad.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const rect = pad.getBoundingClientRect();
+        for (let i = 0; i < e.touches.length; i++) {
+            let t = e.touches[i];
+            let x = Math.max(0, Math.min(t.clientX - rect.left, rect.width));
+            let y = Math.max(0, Math.min(t.clientY - rect.top, rect.height));
+            updateVoice('touch_' + t.identifier, x / rect.width, 1 - (y / rect.height));
+        }
+        updateVisuals();
+    }, { passive: false });
+
+    pad.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        let activeIds = Array.from(e.touches).map(t => 'touch_' + t.identifier);
+        Object.keys(activeVoices).forEach(id => {
+            if (id.startsWith('touch_') && !activeIds.includes(id)) {
+                removeVoice(id);
+            }
+        });
+    }, { passive: false });
+
+    pad.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        Object.keys(activeVoices).forEach(id => {
+            if (id.startsWith('touch_')) removeVoice(id);
+        });
+    }, { passive: false });
+
+    // --- CONTROLLI ---
+    document.querySelectorAll('[data-wave]').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('[data-wave]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentWave = btn.getAttribute('data-wave');
+            Object.values(activeVoices).forEach(v => v.osc.type = currentWave);
+        };
+    });
+
+    const btnArp = document.getElementById('btnArp');
+    btnArp.onclick = () => {
+        arpMode = (arpMode + 1) % 4; // 0: OFF, 1: 1/4, 2: 1/16, 3: 1/32
+        if (arpMode === 0) {
+            btnArp.textContent = "ARP OFF";
+            btnArp.classList.remove('active');
+            if (arpTimer) { clearInterval(arpTimer); arpTimer = null; }
+            Object.values(activeVoices).forEach(v => v.gain.gain.setValueAtTime(1.0, audioCtx.currentTime));
+        } else {
+            if (arpMode === 1) btnArp.textContent = "ARP 1/4";
+            if (arpMode === 2) btnArp.textContent = "ARP 1/16";
+            if (arpMode === 3) btnArp.textContent = "ARP 1/32";
+            btnArp.classList.add('active');
+            if (Object.keys(activeVoices).length > 0) {
+                startArpEngine();
+            }
+        }
+    };
+
+    document.getElementById('btnDelay').onclick = function() {
+        this.classList.toggle('active');
+        updateFXRouting();
+    };
+    document.getElementById('btnReverb').onclick = function() {
+        this.classList.toggle('active');
+        updateFXRouting();
+    };
+
+    const volumeRange = document.getElementById('volumeRange');
+    const volumeLabel = document.getElementById('volumeLabel');
+    volumeRange.oninput = (e) => {
+        masterVolume = parseInt(e.target.value) / 100;
+        volumeLabel.textContent = `VOLUME: ${e.target.value}%`;
+        if (masterGain && audioCtx) {
+            masterGain.gain.setTargetAtTime(masterVolume * 0.25, audioCtx.currentTime, 0.02);
+        }
+    };
+</script>
+
+</body>
+</html>
