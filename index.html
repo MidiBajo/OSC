@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SYNTHBAJO - Polyphonic Kaoss Pad</title>
+    <title>SYNTHBAJO - Kaoss Pad (PC & iPhone)</title>
     <style>
         body {
             background: linear-gradient(135deg, #132e25 0%, #061510 100%);
@@ -16,6 +16,7 @@
             min-height: 100vh;
             box-sizing: border-box;
             user-select: none;
+            -webkit-user-select: none;
         }
         .container {
             width: 100%;
@@ -108,6 +109,7 @@
             overflow: hidden;
             margin: 6px 0;
             cursor: crosshair;
+            touch-action: none;
         }
         .kaos-pad-grid {
             position: absolute;
@@ -148,7 +150,7 @@
 <body>
 
 <div class="container">
-    <h2>KAOSS-BAJO POLY (WINDOWS)</h2>
+    <h2>KAOSS-BAJO (UNIVERSALE)</h2>
 
     <div class="section-label">Forma d'Onda:</div>
     <div class="row">
@@ -161,7 +163,7 @@
     <div class="section-label">X/Y Pad:</div>
     <div class="kaos-pad" id="kaosPad">
         <div class="kaos-pad-grid"></div>
-        <div class="kaos-instruction" id="kaosText">CLICCA E TIENI PREMUTO SUL PAD</div>
+        <div class="kaos-instruction" id="kaosText">CLICCA O TOCCA IL PAD</div>
         <div class="touch-point" id="tp-0"></div>
     </div>
 
@@ -187,10 +189,9 @@
     
     let arpMode = 0; // 0 = OFF, 1 = 1/4, 2 = 1/16, 3 = 1/32
     let arpTimer = null;
-    let arpStep = 0;
 
-    let activeVoice = null; // Gestiamo una voce principale pulita per il mouse
-    let isMouseDown = false;
+    let activeVoice = null;
+    let isInteracting = false;
 
     const pad = document.getElementById('kaosPad');
     const kaosText = document.getElementById('kaosText');
@@ -266,7 +267,6 @@
         filter.Q.setValueAtTime(4, audioCtx.currentTime);
 
         let gain = audioCtx.createGain();
-        // Se l'arpeggiatore è attivo, partiamo a volume 0 in attesa del primo tick
         let initialGain = (arpMode === 0) ? 1.0 : 0.0;
         gain.gain.setValueAtTime(initialGain, audioCtx.currentTime);
 
@@ -279,7 +279,6 @@
         osc.start();
 
         activeVoice = { osc, gain, filter, freq, xNorm, yNorm };
-        arpStep = 0;
 
         if (arpMode > 0) {
             startArpEngine();
@@ -336,19 +335,14 @@
         if (arpTimer) clearInterval(arpTimer);
         if (arpMode === 0) return;
 
-        // Velocità dell'arpeggio in millisecondi
         let speed = (arpMode === 1) ? 250 : (arpMode === 2 ? 125 : 62); // 1/4, 1/16, 1/32
 
         arpTimer = setInterval(() => {
             if (!audioCtx || arpMode === 0 || !activeVoice) return;
 
-            // Aggiorna frequenza corrente
             activeVoice.osc.frequency.setTargetAtTime(activeVoice.freq, audioCtx.currentTime, 0.01);
-
-            // Simula il "trillo" o battito ritmico aprendo e chiudendo il volume rapidamente
             activeVoice.gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
             
-            // Chiude leggermente prima della fine del tick per dare staccato/ritmo pulito
             setTimeout(() => {
                 if (activeVoice && arpMode > 0) {
                     activeVoice.gain.gain.setValueAtTime(0.0, audioCtx.currentTime);
@@ -358,9 +352,9 @@
         }, speed);
     }
 
-    // Mouse Events
+    // --- GESTIONE MOUSE (WINDOWS / DESKTOP) ---
     pad.addEventListener('mousedown', (e) => {
-        isMouseDown = true;
+        isInteracting = true;
         const rect = pad.getBoundingClientRect();
         let x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         let y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
@@ -368,7 +362,7 @@
     });
 
     window.addEventListener('mousemove', (e) => {
-        if (!isMouseDown) return;
+        if (!isInteracting) return;
         const rect = pad.getBoundingClientRect();
         let x = e.clientX - rect.left;
         let y = e.clientY - rect.top;
@@ -379,12 +373,43 @@
     });
 
     window.addEventListener('mouseup', () => {
-        if (isMouseDown) {
-            isMouseDown = false;
+        if (isInteracting) {
+            isInteracting = false;
             stopVoice();
         }
     });
 
+    // --- GESTIONE TOUCH (IPHONE / IOS / SMARTPHONE) ---
+    pad.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        isInteracting = true;
+        const rect = pad.getBoundingClientRect();
+        let touch = e.touches[0];
+        let x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
+        let y = Math.max(0, Math.min(touch.clientY - rect.top, rect.height));
+        startVoice(x / rect.width, 1 - (y / rect.height));
+    }, { passive: false });
+
+    pad.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!isInteracting) return;
+        const rect = pad.getBoundingClientRect();
+        let touch = e.touches[0];
+        let x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
+        let y = Math.max(0, Math.min(touch.clientY - rect.top, rect.height));
+        updateVoice(x / rect.width, 1 - (y / rect.height));
+        updateVisuals();
+    }, { passive: false });
+
+    pad.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (isInteracting) {
+            isInteracting = false;
+            stopVoice();
+        }
+    }, { passive: false });
+
+    // --- CONTROLLI DI INTERFACCIA ---
     document.querySelectorAll('[data-wave]').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('[data-wave]').forEach(b => b.classList.remove('active'));
