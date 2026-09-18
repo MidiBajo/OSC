@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SYNTHBAJO - Kaoss Pad (PC & iPhone)</title>
+    <title>SYNTHBAJO - Polyphonic Kaoss Pad</title>
     <style>
         body {
             background: linear-gradient(135deg, #132e25 0%, #061510 100%);
@@ -150,7 +150,7 @@
 <body>
 
 <div class="container">
-    <h2>KAOSS-BAJO (UNIVERSALE)</h2>
+    <h2>KAOSS-BAJO POLY (IPHONE & PC)</h2>
 
     <div class="section-label">Forma d'Onda:</div>
     <div class="row">
@@ -160,11 +160,16 @@
         <button data-wave="triangle">Tri</button>
     </div>
 
-    <div class="section-label">X/Y Pad:</div>
+    <div class="section-label">X/Y Pad (Multi-touch supportato):</div>
     <div class="kaos-pad" id="kaosPad">
         <div class="kaos-pad-grid"></div>
-        <div class="kaos-instruction" id="kaosText">CLICCA O TOCCA IL PAD</div>
+        <div class="kaos-instruction" id="kaosText">TOCCA CON PIÙ DITA O CLICCA</div>
+        <!-- Pool di indicatori visivi per il multitouch -->
         <div class="touch-point" id="tp-0"></div>
+        <div class="touch-point" id="tp-1"></div>
+        <div class="touch-point" id="tp-2"></div>
+        <div class="touch-point" id="tp-3"></div>
+        <div class="touch-point" id="tp-4"></div>
     </div>
 
     <div class="control-box">
@@ -189,13 +194,13 @@
     
     let arpMode = 0; // 0 = OFF, 1 = 1/4, 2 = 1/16, 3 = 1/32
     let arpTimer = null;
+    let arpStepIndex = 0;
 
-    let activeVoice = null;
-    let isInteracting = false;
+    let activeVoices = {}; // Mappa ID -> { osc, gain, filter, freq, xNorm, yNorm }
+    let isMouseDown = false;
 
     const pad = document.getElementById('kaosPad');
     const kaosText = document.getElementById('kaosText');
-    const dot = document.getElementById('tp-0');
 
     function initAudio() {
         if (!audioCtx) {
@@ -253,9 +258,9 @@
         convolverNode.buffer = impulse;
     }
 
-    function startVoice(xNorm, yNorm) {
+    function createVoice(id, xNorm, yNorm) {
         initAudio();
-        if (activeVoice) stopVoice();
+        if (activeVoices[id]) removeVoice(id);
 
         let osc = audioCtx.createOscillator();
         osc.type = currentWave;
@@ -278,38 +283,40 @@
         gain.connect(masterGain);
         osc.start();
 
-        activeVoice = { osc, gain, filter, freq, xNorm, yNorm };
+        activeVoices[id] = { osc, gain, filter, freq, xNorm, yNorm };
 
-        if (arpMode > 0) {
+        if (arpMode > 0 && !arpTimer) {
             startArpEngine();
         }
         updateVisuals();
     }
 
-    function updateVoice(xNorm, yNorm) {
-        if (!activeVoice || !audioCtx) return;
+    function updateVoice(id, xNorm, yNorm) {
+        let v = activeVoices[id];
+        if (!v || !audioCtx) return;
 
-        activeVoice.xNorm = xNorm;
-        activeVoice.yNorm = yNorm;
-        activeVoice.freq = 110 * Math.pow(2, xNorm * 4);
+        v.xNorm = xNorm;
+        v.yNorm = yNorm;
+        v.freq = 110 * Math.pow(2, xNorm * 4);
 
         if (arpMode === 0) {
-            activeVoice.osc.frequency.setTargetAtTime(activeVoice.freq, audioCtx.currentTime, 0.01);
+            v.osc.frequency.setTargetAtTime(v.freq, audioCtx.currentTime, 0.01);
         }
         let cutoff = 100 + Math.pow(yNorm, 2) * 5000;
-        activeVoice.filter.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.01);
+        v.filter.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.01);
     }
 
-    function stopVoice() {
-        if (activeVoice && audioCtx) {
+    function removeVoice(id) {
+        let v = activeVoices[id];
+        if (v && audioCtx) {
             try {
-                activeVoice.gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                let o = activeVoice.osc;
+                v.gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                let o = v.osc;
                 setTimeout(() => { o.stop(); o.disconnect(); }, 50);
             } catch(e){}
-            activeVoice = null;
+            delete activeVoices[id];
         }
-        if (arpTimer) {
+        if (Object.keys(activeVoices).length === 0 && arpTimer) {
             clearInterval(arpTimer);
             arpTimer = null;
         }
@@ -317,17 +324,22 @@
     }
 
     function updateVisuals() {
-        if (activeVoice) {
-            kaosText.style.opacity = '0.1';
-            let rect = pad.getBoundingClientRect();
-            let px = activeVoice.xNorm * rect.width;
-            let py = (1 - activeVoice.yNorm) * rect.height;
-            dot.style.left = `${px}px`;
-            dot.style.top = `${py}px`;
-            dot.style.display = 'block';
-        } else {
-            kaosText.style.opacity = '1';
-            dot.style.display = 'none';
+        let keys = Object.keys(activeVoices);
+        kaosText.style.opacity = keys.length > 0 ? '0.1' : '1';
+
+        for (let i = 0; i < 5; i++) {
+            let dot = document.getElementById(`tp-${i}`);
+            if (keys[i]) {
+                let v = activeVoices[keys[i]];
+                let rect = pad.getBoundingClientRect();
+                let px = v.xNorm * rect.width;
+                let py = (1 - v.yNorm) * rect.height;
+                dot.style.left = `${px}px`;
+                dot.style.top = `${py}px`;
+                dot.style.display = 'block';
+            } else {
+                dot.style.display = 'none';
+            }
         }
     }
 
@@ -338,84 +350,103 @@
         let speed = (arpMode === 1) ? 250 : (arpMode === 2 ? 125 : 62); // 1/4, 1/16, 1/32
 
         arpTimer = setInterval(() => {
-            if (!audioCtx || arpMode === 0 || !activeVoice) return;
+            if (!audioCtx || arpMode === 0) return;
+            let keys = Object.keys(activeVoices);
+            if (keys.length === 0) return;
 
-            activeVoice.osc.frequency.setTargetAtTime(activeVoice.freq, audioCtx.currentTime, 0.01);
-            activeVoice.gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-            
-            setTimeout(() => {
-                if (activeVoice && arpMode > 0) {
-                    activeVoice.gain.gain.setValueAtTime(0.0, audioCtx.currentTime);
-                }
-            }, speed * 0.6);
+            // Se ci sono più note/dita, ordiniamo per frequenza (arpeggio ascendente)
+            keys.sort((a, b) => activeVoices[a].freq - activeVoices[b].freq);
 
+            arpStepIndex = (arpStepIndex + 1) % keys.length;
+            let currentKey = keys[arpStepIndex];
+
+            keys.forEach((k) => {
+                let v = activeVoices[k];
+                if (!v) return;
+                v.osc.frequency.setTargetAtTime(v.freq, audioCtx.currentTime, 0.01);
+                
+                // Se c'è una sola nota ripete il battito, se ce ne sono tante le alterna in sequenza
+                let targetVol = (keys.length === 1 || k === currentKey) ? 1.0 : 0.0;
+                v.gain.gain.setValueAtTime(targetVol, audioCtx.currentTime);
+            });
         }, speed);
     }
 
-    // --- GESTIONE MOUSE (WINDOWS / DESKTOP) ---
+    // --- MOUSE (WINDOWS) ---
     pad.addEventListener('mousedown', (e) => {
-        isInteracting = true;
+        isMouseDown = true;
         const rect = pad.getBoundingClientRect();
         let x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
         let y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-        startVoice(x / rect.width, 1 - (y / rect.height));
+        createVoice('mouse_main', x / rect.width, 1 - (y / rect.height));
     });
 
     window.addEventListener('mousemove', (e) => {
-        if (!isInteracting) return;
+        if (!isMouseDown) return;
         const rect = pad.getBoundingClientRect();
         let x = e.clientX - rect.left;
         let y = e.clientY - rect.top;
         if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-            updateVoice(x / rect.width, 1 - (y / rect.height));
+            updateVoice('mouse_main', x / rect.width, 1 - (y / rect.height));
             updateVisuals();
         }
     });
 
     window.addEventListener('mouseup', () => {
-        if (isInteracting) {
-            isInteracting = false;
-            stopVoice();
+        if (isMouseDown) {
+            isMouseDown = false;
+            removeVoice('mouse_main');
         }
     });
 
-    // --- GESTIONE TOUCH (IPHONE / IOS / SMARTPHONE) ---
+    // --- MULTITOUCH (IPHONE / IOS) ---
     pad.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        isInteracting = true;
         const rect = pad.getBoundingClientRect();
-        let touch = e.touches[0];
-        let x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
-        let y = Math.max(0, Math.min(touch.clientY - rect.top, rect.height));
-        startVoice(x / rect.width, 1 - (y / rect.height));
+        for (let i = 0; i < e.touches.length; i++) {
+            let t = e.touches[i];
+            let x = Math.max(0, Math.min(t.clientX - rect.left, rect.width));
+            let y = Math.max(0, Math.min(t.clientY - rect.top, rect.height));
+            createVoice('touch_' + t.identifier, x / rect.width, 1 - (y / rect.height));
+        }
     }, { passive: false });
 
     pad.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        if (!isInteracting) return;
         const rect = pad.getBoundingClientRect();
-        let touch = e.touches[0];
-        let x = Math.max(0, Math.min(touch.clientX - rect.left, rect.width));
-        let y = Math.max(0, Math.min(touch.clientY - rect.top, rect.height));
-        updateVoice(x / rect.width, 1 - (y / rect.height));
+        for (let i = 0; i < e.touches.length; i++) {
+            let t = e.touches[i];
+            let x = Math.max(0, Math.min(t.clientX - rect.left, rect.width));
+            let y = Math.max(0, Math.min(t.clientY - rect.top, rect.height));
+            updateVoice('touch_' + t.identifier, x / rect.width, 1 - (y / rect.height));
+        }
         updateVisuals();
     }, { passive: false });
 
     pad.addEventListener('touchend', (e) => {
         e.preventDefault();
-        if (isInteracting) {
-            isInteracting = false;
-            stopVoice();
-        }
+        let activeIds = Array.from(e.touches).map(t => 'touch_' + t.identifier);
+        Object.keys(activeVoices).forEach(id => {
+            if (id.startsWith('touch_') && !activeIds.includes(id)) {
+                removeVoice(id);
+            }
+        });
     }, { passive: false });
 
-    // --- CONTROLLI DI INTERFACCIA ---
+    pad.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        Object.keys(activeVoices).forEach(id => {
+            if (id.startsWith('touch_')) removeVoice(id);
+        });
+    }, { passive: false });
+
+    // --- CONTROLLI ---
     document.querySelectorAll('[data-wave]').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('[data-wave]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentWave = btn.getAttribute('data-wave');
-            if (activeVoice) activeVoice.osc.type = currentWave;
+            Object.values(activeVoices).forEach(v => v.osc.type = currentWave);
         };
     });
 
@@ -426,13 +457,13 @@
             btnArp.textContent = "ARP OFF";
             btnArp.classList.remove('active');
             if (arpTimer) { clearInterval(arpTimer); arpTimer = null; }
-            if (activeVoice) activeVoice.gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+            Object.values(activeVoices).forEach(v => v.gain.gain.setValueAtTime(1.0, audioCtx.currentTime));
         } else {
             if (arpMode === 1) btnArp.textContent = "ARP 1/4";
             if (arpMode === 2) btnArp.textContent = "ARP 1/16";
             if (arpMode === 3) btnArp.textContent = "ARP 1/32";
             btnArp.classList.add('active');
-            if (activeVoice) {
+            if (Object.keys(activeVoices).length > 0) {
                 startArpEngine();
             }
         }
